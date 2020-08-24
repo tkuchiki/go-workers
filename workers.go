@@ -97,7 +97,7 @@ func StatsServer(port int) {
 
 func startSchedule() {
 	if schedule == nil {
-		schedule = newScheduled(RETRY_KEY, SCHEDULED_JOBS_KEY)
+		schedule = newScheduled(Config.RetryKey, Config.ScheduleKey)
 	}
 
 	schedule.start()
