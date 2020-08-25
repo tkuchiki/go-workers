@@ -72,19 +72,19 @@ func EnqueueSpec(c gospec.Context) {
 			c.Expect(ea, IsWithin(0.1), nowToSecondsWithNanoPrecision())
 		})
 
-		c.Specify("sets retry count to `retry`", func() {
-			EnqueueWithOptions("enqueue6", "Compare", []string{"foo", "bar"}, EnqueueOptions{RetryCount: 13})
+		c.Specify("has retry and retry_max when set", func() {
+			EnqueueWithOptions("enqueue6", "Compare", []string{"foo", "bar"}, EnqueueOptions{RetryMax: 13, Retry: true})
 
 			bytes, _ := redis.Bytes(conn.Do("lpop", "prod:queue:enqueue6"))
 			var result map[string]interface{}
 			json.Unmarshal(bytes, &result)
 			c.Expect(result["class"], Equals, "Compare")
 
-			retry := result["retry"].(float64)
-			c.Expect(retry, Equals, float64(13))
+			retry := result["retry"].(bool)
+			c.Expect(retry, Equals, true)
 
-			retryCount := result["retry_count"].(float64)
-			c.Expect(retryCount, Equals, float64(0))
+			retryMax := int(result["retry_max"].(float64))
+			c.Expect(retryMax, Equals, 13)
 		})
 
 		c.Specify("sets Retry correctly when no count given", func() {
@@ -97,6 +97,33 @@ func EnqueueSpec(c gospec.Context) {
 
 			retry := result["retry"].(bool)
 			c.Expect(retry, Equals, true)
+		})
+
+		c.Specify("has retry_options when set", func() {
+			EnqueueWithOptions(
+				"enqueue7", "Compare", []string{"foo", "bar"},
+				EnqueueOptions{
+					RetryMax: 13,
+					Retry:    true,
+					RetryOptions: RetryOptions{
+						Exp:      2,
+						MinDelay: 0,
+						MaxDelay: 60,
+						MaxRand:  30,
+					},
+				})
+
+			bytes, _ := redis.Bytes(conn.Do("lpop", "prod:queue:enqueue7"))
+			var result map[string]interface{}
+			json.Unmarshal(bytes, &result)
+			c.Expect(result["class"], Equals, "Compare")
+
+			retryOptions := result["retry_options"].(map[string]interface{})
+			c.Expect(len(retryOptions), Equals, 4)
+			c.Expect(retryOptions["exp"].(float64), Equals, float64(2))
+			c.Expect(retryOptions["min_delay"].(float64), Equals, float64(0))
+			c.Expect(retryOptions["max_delay"].(float64), Equals, float64(60))
+			c.Expect(retryOptions["max_rand"].(float64), Equals, float64(30))
 		})
 	})
 
