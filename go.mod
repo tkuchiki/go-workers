@@ -9,4 +9,5 @@ require (
 	github.com/gomodule/redigo v1.8.2
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/orfjackal/nanospec.go v0.0.0-20120727230329-de4694c1d701 // indirect
+	github.com/sirupsen/logrus v1.6.0
 )

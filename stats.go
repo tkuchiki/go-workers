@@ -15,10 +15,42 @@ type stats struct {
 	Retries   int64       `json:"retries"`
 }
 
+// Stats writes stats on response writer
 func Stats(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	stats := getStats()
+
+	body, _ := json.MarshalIndent(stats, "", "  ")
+	fmt.Fprintln(w, string(body))
+}
+
+// WorkerStats holds workers stats
+type WorkerStats struct {
+	Processed int               `json:"processed"`
+	Failed    int               `json:"failed"`
+	Enqueued  map[string]string `json:"enqueued"`
+	Retries   int64             `json:"retries"`
+}
+
+// GetStats returns workers stats
+func GetStats() *WorkerStats {
+	_stats := getStats()
+	enqueued := map[string]string{}
+	if statsEnqueued, ok := _stats.Enqueued.(map[string]string); ok {
+		enqueued = statsEnqueued
+	}
+
+	return &WorkerStats{
+		Processed: _stats.Processed,
+		Failed:    _stats.Failed,
+		Retries:   _stats.Retries,
+		Enqueued:  enqueued,
+	}
+}
+
+func getStats() stats {
 	jobs := make(map[string][]*map[string]interface{})
 	enqueued := make(map[string]string)
 
@@ -39,7 +71,7 @@ func Stats(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	stats := stats{
+	_stats := stats{
 		0,
 		0,
 		jobs,
@@ -53,37 +85,37 @@ func Stats(w http.ResponseWriter, req *http.Request) {
 	conn.Send("multi")
 	conn.Send("get", Config.Namespace+"stat:processed")
 	conn.Send("get", Config.Namespace+"stat:failed")
-	conn.Send("zcard", Config.Namespace+Config.RetryKey)
+	conn.Send("zcard", Config.Namespace+RETRY_KEY)
 
-	for key, _ := range enqueued {
+	for key := range enqueued {
 		conn.Send("llen", fmt.Sprintf("%squeue:%s", Config.Namespace, key))
 	}
 
 	r, err := conn.Do("exec")
 
 	if err != nil {
-		Logger.Println("couldn't retrieve stats:", err)
+		Logger.Errorln("failed to retrieve stats:", err)
 	}
 
 	results := r.([]interface{})
 	if len(results) == (3 + len(enqueued)) {
 		for index, result := range results {
 			if index == 0 && result != nil {
-				stats.Processed, _ = strconv.Atoi(string(result.([]byte)))
+				_stats.Processed, _ = strconv.Atoi(string(result.([]byte)))
 				continue
 			}
 			if index == 1 && result != nil {
-				stats.Failed, _ = strconv.Atoi(string(result.([]byte)))
+				_stats.Failed, _ = strconv.Atoi(string(result.([]byte)))
 				continue
 			}
 
 			if index == 2 && result != nil {
-				stats.Retries = result.(int64)
+				_stats.Retries = result.(int64)
 				continue
 			}
 
 			queueIndex := 0
-			for key, _ := range enqueued {
+			for key := range enqueued {
 				if queueIndex == (index - 3) {
 					enqueued[key] = fmt.Sprintf("%d", result.(int64))
 				}
@@ -92,6 +124,5 @@ func Stats(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	body, _ := json.MarshalIndent(stats, "", "  ")
-	fmt.Fprintln(w, string(body))
+	return _stats
 }
