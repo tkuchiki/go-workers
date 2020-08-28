@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  go:
+    build:
+      context: .
+      dockerfile: Dockerfile.go
+    image: golang:1.15.0-buster
+    command: go run main.go
+    links:
+      - "redis"
+  ruby:
+    build:
+      context: .
+      dockerfile: Dockerfile.ruby
+    links:
+      - "redis"
+  redis:
+    image: redis:6.0.6-buster
+    ports:
+      - "6379"
